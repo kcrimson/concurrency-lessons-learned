@@ -1,5 +1,23 @@
-build/
+# Ignore Gradle project-specific cache directory
 .gradle
-.vscode/
-.idea/
+
+# Ignore Gradle build output directory
+build
+
+.idea
+
+.vscode
+
+.settings
+
+.project
+
+# Ruby / Bundler
+vendor/
+.bundle/
+*.gem
+
+# mise
+.mise.local.toml
+
 .metals/

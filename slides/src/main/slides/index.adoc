@@ -12,11 +12,10 @@ All right, the joke's over.
 :imagesdir: images
 :customcss: css/custom.css
 :title-slide-background-image: pexels-joao-fernandes-333885982-13921129.jpg
-:mmdc: node_modules/.bin/mmdc
-:puppeteer-config: puppeteer-config.json
 :diagram-format: svg
 
 == Jarosław Pałka
+
 
 staff engineer/team lead/benchmarking team +
 at Neo4j (a graph database)
