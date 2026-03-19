@@ -1,0 +1,42 @@
+.highlight_section_title h2 {
+  background-color: rgba(0, 0, 0, 0.6);
+  color: white;
+}
+
+.reveal pre code {
+  display: block;
+  max-height: 800px; /* Adjust the height as needed */
+  overflow: auto;    /* Add scrollbars if content exceeds the height */
+}
+
+.reveal blockquote {
+  width : 90%;
+}
+
+section.white.background {
+  background-color: white;
+}
+
+section.title {
+  background-color: rgba(0, 0, 0, 0.8);
+}
+
+section.title h1,
+section.title h2,
+section.title h3,
+section.title p {
+  color: white;
+}
+
+/* Sequence diagrams: fill slide width, natural height, no stretching */
+.reveal .imageblock {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+.reveal .imageblock img {
+  width: 100%;
+  height: auto;
+}
+
