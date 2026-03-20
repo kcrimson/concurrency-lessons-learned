@@ -21,3 +21,4 @@ vendor/
 .mise.local.toml
 
 .metals/
+.bloop

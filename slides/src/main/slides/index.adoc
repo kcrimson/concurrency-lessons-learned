@@ -42,9 +42,11 @@ image::https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExMHo0OGFhb3piNTVxZml1MTE
 
 === !
 
-you can ask AI to fix it, by trying millions of times
+you can ask AI to fix it, +
+by trying millions of times
 
-how does it make it different from monkey trying to write Shakespeare?
+how does it make it different from +
+monkey trying to write Shakespeare?
 
 === concurrency is hard
 
@@ -55,6 +57,9 @@ is to keep trying
 (and reading papers from 70's)
 
 === free lunch is over
+
+in 2005 Herb Sutter wrote famous article +
+https://www.cs.utexas.edu/~lin/cs380p/Free_Lunch.pdf[The Free Lunch Is Over: A Fundamental Turn Toward Concurrency in Software]
 
 [quote]
 The major processor manufacturers and architectures, from Intel and AMD to Sparc and PowerPC, have run out of room with most of their
@@ -88,7 +93,10 @@ we cannot pretend this is not our problem, frameworks have issues and inefficien
 
 and last but not least...
 
+[role="highlight_section_title"]
 === because it is fun
+
+image::https://media3.giphy.com/media/v1.Y2lkPTc5MGI3NjExcTU4dmlta2NydTg4OHo5cmJpaWlrZDRuNWpidXBrYWczODV4MWlrNyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/cMALqIjmb7ygw/giphy.gif[background]
 
 
 == limitations are in our brain
@@ -121,7 +129,10 @@ class A{
 }
 ----
 
+[role="highlight_section_title"]
 === What do you expect to see?
+
+image::https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExcjVjOGNwdXZwMnlpMm15OTlyM201ZXJ2d2hsN3UwYms1eTZybzJ2bSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/xFpT7lMV5Mkqq0E6YM/giphy.gif[background]
 
 === AMD (Ryzen 7, 8 cores)
 
@@ -147,9 +158,13 @@ class A{
 
 === But why?
 
-CPU (and compiler) are free to reorder reads and writes, to maximize instructions throughput
+CPU (and compiler) are free to reorder reads and writes, +
+to maximize instructions throughput
 
-welcome to instruction level parallelism
+[role="highlight_section_title"]
+=== welcome to instruction level parallelism
+
+image::https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExa3J0dHBjeHg5eGU2ZDEwa2NwcHAzMTN1bHE0d2wwZnI4NHZvcTB0ZyZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/WvixhOVEixWZUEH8la/giphy.gif[background]
 
 === The pipeline
 
@@ -171,11 +186,11 @@ A modern CPU has *many* of these stages running *in parallel* — this is called
 
 Some instructions take longer than others
 
-[source]
+[source,java]
 ----
 x = 1;            // store — fast
-y = someArray[i]; // load from RAM — can take 200+ cycles!
-z = 2;            // fast, but stalled behind the load
+y = arr[i];       // load from RAM — ~200 cycles
+z = 2;            // fast, but independent of y
 ----
 
 Sitting idle wastes the pipeline — so the CPU *reorders* independent instructions to keep every stage busy
@@ -192,7 +207,7 @@ The CPU maintains a *reorder buffer*: a queue of in-flight instructions
 
 three instructions, one very slow:
 
-[source]
+[source,java]
 ----
 x = 1;            // store — fast
 y = arr[i];       // load from RAM — ~200 cycles
@@ -214,41 +229,6 @@ z = 2;            // fast, but independent of y
 | 204   |              |              | `y = arr[i]` ✓             | `y`, then `z`
 |===
 
-=== Out-of-order execution — the engine
-
-[mermaid]
-....
-flowchart TD
-    FETCH["① Fetch\nload from I-cache"]
-    DECODE["② Decode\nidentify opcode + operands"]
-
-    subgraph ISSUE_BOX["③ Issue  (in program order — stall here on structural hazard → bubble)"]
-        RENAME["Register Renaming\neliminates WAW / WAR hazards"]
-    end
-
-    RS["④ Reservation Station\nhold until source operands ready\nRAW hazard: wait here, no stall"]
-
-    subgraph EX_BOX["⑤ Execute  (out of order)"]
-        direction LR
-        EU1["ALU\n~1 cycle"]
-        EU2["Load / Store\ncache miss ~4–200 cycles"]
-    end
-
-    CDB(["⑥ Common Data Bus\nbroadcast result + tag\nto all waiting RS entries"])
-
-    ROB["⑦ Reorder Buffer\ntracks every in-flight instruction\nin program order"]
-
-    COMMIT["⑧ Commit / Retire  (in program order)\nnormal: write to register file / memory\nmisprediction: flush pipeline → bubbles\nexception: precise rollback"]
-
-    FETCH --> DECODE --> RENAME
-    RENAME -->|"ROB entry allocated"| ROB
-    RENAME -->|"RS entry allocated"| RS
-    RS -->|"operands ready"| EU1 & EU2
-    EU1 & EU2 --> CDB
-    CDB -->|"result stored"| ROB
-    CDB -.->|"operand forwarded\nto waiting RS entries"| RS
-    ROB --> COMMIT
-....
 
 === pipeline hazards
 
@@ -258,52 +238,23 @@ a *pipeline hazard* is any condition that prevents the next instruction from exe
 * *data* — dependency: an instruction needs a result not yet produced by an earlier instruction
 * *control* — branching: the CPU doesn't know which instruction comes next
 
-a *pipeline bubble* is an empty slot propagating through the pipeline — wasted cycles where no useful work is done
-
-=== structural hazard
-
-* *cause*: no free Reservation Station or ROB entry at the Issue stage
-* *effect*: instruction stalls → pipeline bubble inserted
-* *resolution*: more RS entries and ROB slots — modern CPUs have hundreds of each
-* *example*: multiple loads competing for a single cache port
-
-=== data hazards
-
-[%autowidth]
-|===
-| Type | Name | Problem | Resolution
-
-| RAW
-| Read After Write +
-  _true dependency_
-| instruction reads a register before the prior write completes
-| RS waits; result forwarded via CDB — no bubble
-
-| WAW
-| Write After Write +
-  _output hazard_
-| two instructions write the same register
-| register renaming: each write gets a unique ROB tag
-
-| WAR
-| Write After Read +
-  _anti-dependency_
-| instruction overwrites a register still needed by an older instruction
-| register renaming: older read keeps its physical register
-|===
-
-=== control hazard
-
-* *cause*: branch or jump — CPU doesn't know the next instruction's address until the branch executes
-* *speculation*: CPU predicts the branch outcome and keeps fetching ahead (branch predictor)
-* *correct prediction*: no penalty — full throughput maintained
-* *misprediction*: flush all instructions fetched after the branch → pipeline bubbles — ~15–20 cycle penalty
-* modern CPUs reach 95–99% prediction accuracy; mispredictions are rare but expensive
+we solve it by a *pipeline bubble* +
+it is an empty slot propagating through the pipeline +
+— wasted cycles where no useful work is done
 
 === consistency
 
 [quote]
 defines what values a read operation can return after write operations, providing guarantees on the visibility and ordering of updates, often acting as a tradeoff between performance and correctness
+
+=== !
+
+CPU architectures have different consistency models, +  
+based on possible load/store reordering, branch prediction 
+
+porting concurrent code to different CPU architectures is a nightmare 
+
+worry not, there is a solution to this problem
 
 == things are getting MESI
 
@@ -335,10 +286,6 @@ flowchart TB
     C1L2 --> L3
     L3 --> RAM
 ....
-
-=== when two threads update the same value
-
-video::diagram-1773571459838.mp4[opts="autoplay,loop,nocontrols"]
 
 === !
 
@@ -606,14 +553,151 @@ only one thread executes the critical section at a time
 
 === communicating sequential processes
 
+Tony Hoare, 1978 — _Communicating Sequential Processes_
+
+[quote]
+Do not communicate by sharing memory; instead, share memory by communicating.
+
+* concurrent *processes* run in isolation — no shared state
+* coordination happens exclusively through *channels*: typed conduits for passing messages
+* sender blocks until receiver is ready — a *synchronous rendezvous* (or buffered up to a capacity)
+* the channel *is* the synchronization — no locks, no volatiles needed
+
+=== pros and cons
+
+[%autowidth]
+|===
+| ✓ Pros | ✗ Cons
+
+| no shared mutable state → no data races by construction
+| deadlock still possible: two processes waiting on each other's channel
+
+| deadlock detection is tractable — Hoare's CSP algebra; model checkers (FDR, SPIN)
+| buffered channels re-introduce coordination complexity
+
+| composable: pipelines, fan-out, fan-in are natural idioms
+| not ideal for fine-grained shared data (counters, caches) — other primitives still needed
+
+| mental model maps naturally to real-world workflows
+| channel-heavy code is hard to trace — "goroutine leak" is a real production hazard
+
+|===
+
+=== implementations
+
+[%autowidth]
+|===
+| Language | Implementation | Notes
+
+| *Go*
+| built-in `chan`, `go` keyword, `select`
+| canonical CSP implementation; channels are first-class values
+
+| *Kotlin*
+| `kotlinx.coroutines` — `Channel`, `Flow`
+| structured concurrency; coroutine-based; backpressure via `Flow`
+
+| *Java*
+| `SynchronousQueue`, `LinkedBlockingQueue`, `java.util.concurrent`
+| lower-level; Project Loom virtual threads make channel-style code practical
+
+| *Clojure*
+| `core.async` — `chan`, `go`, `<!` / `>!`
+| macro-based CSP for both JVM and ClojureScript
+
+| *Rust*
+| `std::sync::mpsc`, `crossbeam::channel`, `tokio::mpsc`
+| type system prevents data races at compile time; ownership enforces send semantics
+
+|===
+
 === actor model
+
+Carl Hewitt, 1973 — _A Universal Modular ACTOR Formalism for Artificial Intelligence_
+
+* an *actor* is the fundamental unit of computation: it has private state, a *mailbox*, and a behavior
+* actors communicate exclusively by sending *asynchronous messages* — no shared memory, no blocking
+* on receiving a message an actor can: send messages to other actors, create new actors, change its own behavior
+* the runtime routes messages; actors run wherever the scheduler decides — location is transparent
+
+=== pros and cons
+
+[%autowidth]
+|===
+| ✓ Pros | ✗ Cons
+
+| no shared state → no data races
+| async messaging makes reasoning about order and timing harder
+
+| natural fault isolation — one actor crashing doesn't affect others
+| mailbox overflow if consumers are slower than producers
+
+| scales to distributed systems; location transparency is built in
+| debugging message flows across many actors is difficult
+
+| "let it crash" + supervision trees simplify error recovery
+| not a silver bullet for coordinated transactions — eventual consistency only
+
+|===
+
+=== implementations
+
+[%autowidth]
+|===
+| Language / Platform | Implementation | Notes
+
+| *Erlang / Elixir*
+| native processes + OTP (`GenServer`, `Supervisor`)
+| the reference implementation; built for telecom-grade reliability; "let it crash"
+
+| *Scala / JVM*
+| Akka (now Apache Pekko)
+| full actor runtime for JVM; supports clustering and persistence
+
+| *Java*
+| Akka Java API, Virtual Actors (Microsoft Orleans port)
+| less idiomatic but fully supported
+
+| *C# / .NET*
+| Microsoft Orleans (Virtual Actors)
+| actors are "grains" — automatically activated/deactivated by runtime
+
+| *Rust*
+| `Actix`, `Riker`
+| `Actix` also powers the popular Actix-Web HTTP framework
+
+|===
+
+=== Actors vs CSP
+
+[%autowidth]
+|===
+| | Actor Model | CSP
+
+| *communication*
+| async — message queued in recipient's mailbox
+| sync (or buffered) — rendezvous on a shared channel
+
+| *identity*
+| addressed by actor reference
+| addressed by channel reference
+
+| *failure handling*
+| built-in supervision / "let it crash"
+| handled outside the model
+
+| *location*
+| location-transparent; actors can be remote
+| channels are typically local / in-process
+
+|===
 
 === don't trust anyone
 
 * your brain can fool you
 * you misunderstood things
-* CPU and OS can have weird quirks
-* frameworks can have errors (WAT!)
+* CPU,operating systems and runtime can have weird quirks
+* frameworks and libraries can have errors (WAT!)
 
 === testing concurrent code
 
@@ -638,25 +722,36 @@ exhaustively explores *all* possible execution states — no interleaving is mis
 
 run the concurrent scenario many times and *hope* it triggers a failure
 
-*jcstress* (OpenJDK): `@JCStressTest`, `@Actor`, `@Arbiter` — +
-observes all outcome distributions and flags anything that violates the spec
-
 * *✓* works on real production code — zero model-building effort
 * *✓* simple annotation-based API, familiar to Java developers
 * *✗* probabilistic — needs thousands of iterations to build confidence
 * *✗* hardware / OS scheduler decides which interleavings are exercised
 * *✗* many bugs are *never* triggered even after hours of stress runs
 
+NOTICE: +
+*jcstress* (for Java): `@JCStressTest`, `@Actor`, `@Arbiter` — +
+observes all outcome distributions and flags anything that violates the spec
+
 === controlled interleaving
 
 *take control of the scheduler* — explicitly explore thread interleavings
 
-*Fray* (CMU-PASTA, 2025): drop-in `java` replacement — instruments JVM bytecode on-the-fly +
+https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/asplos277-pct.pdf
+
 shadow locking wraps concurrency primitives without touching JDK / library internals +
 deterministic replay: reproduce the exact failing interleaving every time
 
-* *✓* finds 70% more bugs than JPF, 77% more than jcstress chaos mode _(OOPSLA 2025)_
+* *✓* finds 70% more bugs than JPF, 77% more than jcstress chaos mode
 * *✓* no source changes — `@ConcurrencyTest` with JUnit 5 extension
 * *✓* deterministic replay — debug the exact failing schedule
 * *✗* instrumentation overhead — slower than plain test runs
 * *✗* new tool (2025), ecosystem and IDE support still maturing
+* *✗* instrumentation can break memory model semantics of your code
+
+NOTICE: +
+*Fray* (CMU-PASTA, 2025): instruments JVM bytecode on-the-fly 
+
+=== articles, books, links
+
+
+== thank you
