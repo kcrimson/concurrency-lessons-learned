@@ -8,7 +8,7 @@ jobs:
   publish:
     uses: symentispl/symentis-pl/.github/workflows/build-presentation.yml@master
     with:
-      slug: concurrency-lessons-learned # must match the markdown filename in symentis-pl
+      slug: concurrency-lessons-learned
     secrets:
       R2_ACCOUNT_ID:        ${{ secrets.R2_ACCOUNT_ID }}
       R2_ACCESS_KEY_ID:     ${{ secrets.R2_ACCESS_KEY_ID }}
