@@ -6,7 +6,7 @@ on:
 
 jobs:
   publish:
-    uses: symentispl/symentis-pl/.github/workflows/build-presentation.yml@master
+    uses: symentispl/presentation-actions/.github/workflows/build-presentation.yml@master
     with:
       slug: concurrency-lessons-learned
     secrets:
