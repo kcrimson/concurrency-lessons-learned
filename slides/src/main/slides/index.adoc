@@ -252,6 +252,19 @@ defines what values a read operation can return after write operations, providin
 CPU architectures have different consistency models, +  
 based on possible load/store reordering, branch prediction 
 
+=== x86 vs ARM
+
+[%autowidth]
+|===
+|RESULT       | FREQ (x86_64) |  FREQ (ARM)   |     EXPECT  |DESCRIPTION
+|    x=0, y=0 |  10.97%       |  68.62%       |   Acceptable|  Neither write visible
+|    x=0, y=1 |   0.13%       |   0.21%       |  Interesting|  Only y visible - reordering!
+|    x=1, y=0 |   0.07%       |   0.02%       |   Acceptable|  Only y visible
+|    x=1, y=1 |  88.84%       |  31.15%       |   Acceptable|  Both writes visible
+|===
+
+=== portability
+
 porting concurrent code to different CPU architectures is a nightmare 
 
 worry not, there is a solution to this problem
@@ -450,7 +463,51 @@ sequenceDiagram
 In a cache coherent system, if multiple clients have a cached copy of the same region of a shared memory resource, all copies are the same. Without cache coherence, a change made to the region by one client may not be seen by others, and errors can result when the data used by different clients is mismatched
 
 
-=== false sharing
+=== cache coherence protocols
+
+MESI assigns every cache line one of four states:
+
+[%autowidth]
+|===
+| State | Meaning
+
+| *Modified*  | only copy; dirty — not yet written back to memory
+| *Exclusive* | only copy; clean — matches memory
+| *Shared*    | multiple caches hold a clean copy
+| *Invalid*   | stale or absent — must fetch before use
+|===
+
+every read or write transitions the **cache line** through these states +
+and notifies other caches — this is how coherence is maintained
+
+=== snooping
+
+every cache controller *listens* (snoops) to all transactions on the shared bus or interconnect
+
+when it sees a transaction that affects a **cache line** it holds, it reacts:
+
+[%autowidth]
+|===
+| Event snooped | Line state | Action
+
+| another CPU reads our Modified line
+| M → S
+| write-back to memory, share the line
+
+| another CPU writes (invalidates) a line we hold
+| S / E → I
+| mark our copy Invalid immediately
+
+| another CPU reads a line we hold Exclusive
+| E → S
+| silently downgrade — no write-back needed
+|===
+
+no central coordinator — coherence *emerges* from each cache reacting to bus events
+
+=== MESI state diagram
+
+image::Simplified-MESI-state-diagram-with-transition-states.png[]
 
 [role="highlight_section_title"]
 == let's fix it
@@ -522,13 +579,43 @@ class A{
 * read from synchronization variable: LoadLoad + LoadStore barrier after
 * `x=1` is committed to the cache hierarchy before `y=1` is made visible → `x=0, y=1` outcome is now *impossible*
 
+=== synchronizing actions all the things
+
+why not make all memory accesses to be synchronizing actions?
+
+we get strict consistency (strongest consistency model)
+
+problem solved 
+
+=== !
+
+this disables all performance tricks implemented in hardware and runtimes
+
+software is correct but slow
+
+choose one
+
+=== SC-DRF
+
+there is a middle ground, an agreement in community
+
+“data-race-free sequential-consistency”
+
+[quote]
+Instead of guaranteeing sequential consistency, as we mentioned earlier, today’s processors guarantee a property called “data-race-free sequential-consistency”, or DRF-SC (sometimes also written SC-DRF). A system guaranteeing DRF-SC must define specific instructions called synchronizing instructions, which provide a way to coordinate different processors (equivalently, threads). Programs use those instructions to create a “happens before” relationship between code running on one processor and code running on another. 
+
 === the catch
 
-it is really hard to reason about all these memory operations possible orderings and interleaving
+it is really hard to reason about all these +
+memory operations + 
+and +
+possible orderings and interleaving
 
 we need something that is easier to reason about
 
 === mutual exclusion
+
+who said serializing access to memory is bad?
 
 only one thread executes the critical section at a time
 
@@ -540,7 +627,7 @@ only one thread executes the critical section at a time
 ** *starvation*: a thread is perpetually denied access while others keep taking priority
 ** *lock-free*: at least one thread always makes progress
 ** *wait-free*: every thread makes progress in a bounded number of steps — strongest guarantee, hardest to implement
-* *latency*: cause by contention on locks, can be a killer for systems performance
+* *latency*: caused by contention on locks, can be a killer for systems performance
 
 === immutability changes everything
 
@@ -549,7 +636,10 @@ only one thread executes the critical section at a time
 * reads scale linearly with core count — no contention, no cache-line bouncing
 * functional languages and immutable-by-default designs compose naturally under concurrency
 
+[role="highlight_section_title"]
 === message passing
+
+image::https://media4.giphy.com/media/v1.Y2lkPTc5MGI3NjExemo2YjdoOTRvc25iZmUyazN2eXMxZTYxOTVmaWp5aDFqdDY4OWNuOSZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/3JS0ibGuwIaOpMQOyR/giphy.gif[background]
 
 === communicating sequential processes
 
@@ -703,7 +793,10 @@ Carl Hewitt, 1973 — _A Universal Modular ACTOR Formalism for Artificial Intell
 
 any concurrent code running for long enough will expose errors 
 
-no hope
+[role="highlight_section_title"]
+=== no hope
+
+image::https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExZHk0MDNud3o4dnEwYjhzcWg5bWZzNngxOXVwcDI1aXV6N2Vzd3kzNiZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/o2tupc9bzQTUA/giphy.gif[background]
 
 === formal verification
 
@@ -736,7 +829,7 @@ observes all outcome distributions and flags anything that violates the spec
 
 *take control of the scheduler* — explicitly explore thread interleavings
 
-https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/asplos277-pct.pdf
+https://www.microsoft.com/en-us/research/wp-content/uploads/2016/02/asplos277-pct.pdf[A Randomized Scheduler with Probabilistic Guarantees of Finding Bugs]
 
 shadow locking wraps concurrency primitives without touching JDK / library internals +
 deterministic replay: reproduce the exact failing interleaving every time
@@ -753,5 +846,17 @@ NOTICE: +
 
 === articles, books, links
 
+"Seven Concurrency Models in Seven Weeks" by Paul Butcher
 
+"A Primer on Memory Consistency and Cache Coherence: Second Edition"
+
+Matt Godbolt
+
+Herb Sutter
+
+Fedor Pikus
+
+[role="highlight_section_title"]
 == thank you
+
+image::https://media2.giphy.com/media/v1.Y2lkPTc5MGI3NjExbmZoeHlnOXg2ZXR1c29wc2Nxd2gya2diMW9lcTlldG5oaThsaGdxeCZlcD12MV9pbnRlcm5hbF9naWZfYnlfaWQmY3Q9Zw/J5Xr9k7qK5KGRi45vp/giphy.gif[background]

@@ -28,7 +28,7 @@ section.title p {
   color: white;
 }
 
-/* Sequence diagrams: fill slide width, natural height, no stretching */
+/* Diagrams: fill slide width, natural height, no stretching */
 .reveal .imageblock {
   width: 100%;
   display: flex;
@@ -36,7 +36,9 @@ section.title p {
   justify-content: center;
 }
 .reveal .imageblock img {
-  width: 100%;
+  max-width: 100%;
+  max-height: 820px;
+  width: auto;
   height: auto;
 }
 
